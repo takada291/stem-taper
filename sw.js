@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stem-taper-v0.2';
+const CACHE_NAME = 'stem-taper-v0.3';
 const ASSETS = [
   'index.html',
   'manifest.json',
