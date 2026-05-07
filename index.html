@@ -6,149 +6,181 @@
     <title>幹細り表</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        :root { --primary: #2e7d32; --bg: #f1f8e9; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
-        .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        h1 { font-size: 1.2rem; color: var(--primary); margin: 0 0 15px 0; text-align: center; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        label { font-size: 0.8rem; display: block; margin-bottom: 4px; color: #666; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
-        canvas { width: 100%; height: 300px; background: #fff; border-radius: 8px; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; font-size: 0.9rem; }
-        th, td { border: 1px solid #eee; padding: 8px; text-align: center; }
-        th { background: var(--primary); color: white; }
-        tr:nth-child(even) { background: #fafafa; }
-        .footer { text-align: center; font-size: 0.7rem; color: #999; margin-top: 20px; }
+        :root { --primary: #2e7d32; --bg: #f5f5f5; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 14px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .btn { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .card { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 10px; }
+        .input-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .input-item { display: flex; align-items: center; gap: 5px; }
+        select { padding: 5px; border: 1px solid #ccc; border-radius: 4px; background: white; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; }
+        th { background: #eee; position: sticky; top: 0; }
+        /* モーダルスタイル */
+        #settingsModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
+        .modal-content { background: white; margin: 10% auto; padding: 15px; width: 90%; max-width: 400px; border-radius: 8px; max-height: 80vh; overflow-y: auto; }
+        .param-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+        .param-row input { width: 100%; padding: 4px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h1>幹細り表 v0.1</h1>
-    
-    <label>樹種選択（岐阜県標準）</label>
-    <select id="species" style="margin-bottom: 15px;">
-        <option value="sugi">スギ (a:1.018, b:-1.036, c:1.018)</option>
-        <option value="hinoki">ヒノキ (a:1.231, b:-1.464, c:1.233)</option>
-        <option value="broad">落葉広葉樹 (a:1.638, b:-2.124, c:1.486)</option>
-    </select>
+<div class="header">
+    <span style="font-weight: bold; color: var(--primary);">幹細り表 v0.2</span>
+    <button class="btn" onclick="openSettings()">設定</button>
+</div>
 
-    <div class="grid">
-        <div>
-            <label>総樹高 H (m)</label>
-            <input type="number" id="height" step="0.1" value="20.0">
+<div class="card">
+    <div class="input-group">
+        <div class="input-item">
+            <select id="speciesSelect" onchange="calculate()"></select>
         </div>
-        <div>
-            <label>胸高直径 D (cm)</label>
-            <input type="number" id="dbh" step="0.1" value="30.0">
+        <div class="input-item">
+            <span>樹高</span>
+            <select id="heightSelect" onchange="calculate()"></select>
+            <span>m</span>
+        </div>
+        <div class="input-item">
+            <span>胸高直径</span>
+            <select id="dbhSelect" onchange="calculate()"></select>
+            <span>cm</span>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <canvas id="treeCanvas"></canvas>
-    <table id="taperTable">
+<div class="card" style="padding: 0; overflow-y: auto; max-height: calc(100vh - 120px);">
+    <table>
         <thead>
-            <tr><th>高さ (m)</th><th>直径 (cm)</th></tr>
+            <tr><th>高さ(m)</th><th>直径(cm)</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
 </div>
 
-<div class="footer">© 2026 Takada Forestry DX / Data: 岐阜県標準パラメータ</div>
+<div id="settingsModal">
+    <div class="modal-content">
+        <h3 style="margin-top:0">パラメータ管理 (5枠)</h3>
+        <div style="font-size: 11px; color: #666; margin-bottom: 10px;">名前 / a / b / c</div>
+        <div id="paramInputs"></div>
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button class="btn" style="flex:1" onclick="saveSettings()">保存して戻る</button>
+        </div>
+    </div>
+</div>
 
 <script>
-    const params = {
-        sugi: { a: 1.018, b: -1.036, c: 1.018 },
-        hinoki: { a: 1.231, b: -1.464, c: 1.233 },
-        broad: { a: 1.638, b: -2.124, c: 1.486 }
-    };
+    // 初期データ（岐阜県標準）
+    const defaultParams = [
+        { name: "スギ", a: 1.018, b: -1.036, c: 1.018 },
+        { name: "ヒノキ", a: 1.231, b: -1.464, c: 1.233 },
+        { name: "設定3", a: 1.638, b: -2.124, c: 1.486 },
+        { name: "設定4", a: 1.0, b: -1.0, c: 1.0 },
+        { name: "設定5", a: 1.0, b: -1.0, c: 1.0 }
+    ];
 
-    const speciesEl = document.getElementById('species');
-    const heightEl = document.getElementById('height');
-    const dbhEl = document.getElementById('dbh');
-    const tableBody = document.getElementById('tableBody');
-    const canvas = document.getElementById('treeCanvas');
-    const ctx = canvas.getContext('2d');
+    let currentParams = JSON.parse(localStorage.getItem('taper_params_v2')) || defaultParams;
+
+    // プルダウンの生成
+    function initSelectors() {
+        const hSel = document.getElementById('heightSelect');
+        for(let h=5; h<=40; h++) {
+            hSel.add(new Option(h, h));
+        }
+        hSel.value = 20;
+
+        const dSel = document.getElementById('dbhSelect');
+        for(let d=10; d<=100; d+=2) {
+            dSel.add(new Option(d, d));
+        }
+        dSel.value = 30;
+
+        updateSpeciesDropdown();
+    }
+
+    function updateSpeciesDropdown() {
+        const sSel = document.getElementById('speciesSelect');
+        const lastIdx = sSel.selectedIndex >= 0 ? sSel.selectedIndex : 0;
+        sSel.innerHTML = '';
+        currentParams.forEach((p, i) => {
+            sSel.add(new Option(p.name, i));
+        });
+        sSel.selectedIndex = lastIdx;
+    }
 
     function calculate() {
-        const H = parseFloat(heightEl.value);
-        const D = parseFloat(dbhEl.value);
-        const p = params[speciesEl.value];
+        const idx = document.getElementById('speciesSelect').value;
+        const H = parseFloat(document.getElementById('heightSelect').value);
+        const D = parseFloat(document.getElementById('dbhSelect').value);
+        const p = currentParams[idx];
+        const tableBody = document.getElementById('tableBody');
         
-        // LocalStorage保存
-        localStorage.setItem('taper_last_data', JSON.stringify({s: speciesEl.value, h: H, d: D}));
-
-        // テーブル更新
         tableBody.innerHTML = '';
-        const intervals = [0.2, 1.2];
-        for(let i=2; i<=H; i+=2) intervals.push(i);
-        if(!intervals.includes(H)) intervals.push(H);
+        const steps = [0.2, 1.2];
+        for(let i=2; i<=H; i+=2) steps.push(i);
+        if(!steps.includes(H)) steps.push(H);
         
-        const results = [];
-        intervals.sort((a,b)=>a-b).forEach(h => {
+        steps.sort((a,b)=>a-b).forEach(h => {
             const x = 1 - (h / H);
             const y = p.a * Math.pow(x, 3) + p.b * Math.pow(x, 2) + p.c * x;
             const dia = Math.max(0, y * D);
-            results.push({h, dia});
             
             const tr = document.createElement('tr');
             tr.innerHTML = `<td>${h.toFixed(1)}</td><td>${dia.toFixed(1)}</td>`;
             tableBody.appendChild(tr);
         });
-
-        drawTree(results, H, D);
     }
 
-    function drawTree(data, H, D) {
-        canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-        canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-        
-        const w = canvas.offsetWidth;
-        const h = canvas.offsetHeight;
-        ctx.clearRect(0, 0, w, h);
-        
-        const margin = 30;
-        const scaleY = (h - margin * 2) / H;
-        const scaleX = (w - margin * 2) / D;
-
-        ctx.beginPath();
-        ctx.strokeStyle = '#2e7d32';
-        ctx.lineWidth = 2;
-
-        // 右側の曲線
-        data.forEach((pt, i) => {
-            const py = h - margin - (pt.h * scaleY);
-            const px = w/2 + (pt.dia/2 * scaleX);
-            if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    function openSettings() {
+        const container = document.getElementById('paramInputs');
+        container.innerHTML = '';
+        currentParams.forEach((p, i) => {
+            const div = document.createElement('div');
+            div.className = 'param-row';
+            div.innerHTML = `
+                <input type="text" id="name_${i}" value="${p.name}">
+                <input type="number" id="a_${i}" value="${p.a}" step="0.001">
+                <input type="number" id="b_${i}" value="${p.b}" step="0.001">
+                <input type="number" id="c_${i}" value="${p.c}" step="0.001">
+            `;
+            container.appendChild(div);
         });
-        // 左側の曲線
-        data.reverse().forEach(pt => {
-            const py = h - margin - (pt.h * scaleY);
-            const px = w/2 - (pt.dia/2 * scaleX);
-            ctx.lineTo(px, py);
-        });
-        
-        ctx.closePath();
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(46, 125, 50, 0.1)';
-        ctx.fill();
+        document.getElementById('settingsModal').style.display = 'block';
     }
 
-    [speciesEl, heightEl, dbhEl].forEach(el => el.addEventListener('input', calculate));
-
-    // 初期読み込み
-    window.onload = () => {
-        const saved = JSON.parse(localStorage.getItem('taper_last_data'));
-        if(saved) {
-            speciesEl.value = saved.s;
-            heightEl.value = saved.h;
-            dbhEl.value = saved.d;
+    function saveSettings() {
+        const newParams = [];
+        for(let i=0; i<5; i++) {
+            newParams.push({
+                name: document.getElementById(`name_${i}`).value,
+                a: parseFloat(document.getElementById(`a_${i}`).value),
+                b: parseFloat(document.getElementById(`b_${i}`).value),
+                c: parseFloat(document.getElementById(`c_${i}`).value)
+            });
         }
+        currentParams = newParams;
+        localStorage.setItem('taper_params_v2', JSON.stringify(currentParams));
+        updateSpeciesDropdown();
+        document.getElementById('settingsModal').style.display = 'none';
+        calculate();
+    }
+
+    window.onload = () => {
+        initSelectors();
         calculate();
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                reg.onupdatefound = () => {
+                    const installingWorker = reg.installing;
+                    installingWorker.onstatechange = () => {
+                        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            if (confirm('新しいバージョンがあります。更新しますか？')) {
+                                location.reload();
+                            }
+                        }
+                    };
+                };
+            });
         }
     };
 </script>
