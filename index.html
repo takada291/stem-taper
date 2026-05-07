@@ -28,7 +28,7 @@
 <body>
 
 <div class="header">
-    <span style="font-weight: bold; color: var(--primary);">幹細り表 v0.3</span>
+    <span style="font-weight: bold; color: var(--primary);">幹細り表 v1.0</span>
     <button class="btn" onclick="openSettings()">設定</button>
 </div>
 
@@ -72,16 +72,17 @@
 </div>
 
 <script>
-    // 初期データ（福井県スギを追加）
+    // 初期データ（福井県スギのみ設定、他はブランク）
     const defaultParams = [
         { name: "福井県スギ", a: 1.9771, b: -3.4157, c: 2.5816 },
-        { name: "岐阜県スギ", a: 1.018, b: -1.036, c: 1.018 },
-        { name: "岐阜県ヒノキ", a: 1.231, b: -1.464, c: 1.233 },
+        { name: "設定2", a: 1.0, b: -1.0, c: 1.0 },
+        { name: "設定3", a: 1.0, b: -1.0, c: 1.0 },
         { name: "設定4", a: 1.0, b: -1.0, c: 1.0 },
         { name: "設定5", a: 1.0, b: -1.0, c: 1.0 }
     ];
 
-    let currentParams = JSON.parse(localStorage.getItem('taper_params_v3')) || defaultParams;
+    // 旧バージョンのキャッシュを回避するためキーをv1_0に変更
+    let currentParams = JSON.parse(localStorage.getItem('taper_params_v1_0')) || defaultParams;
 
     // 積分式関数 (相対樹高xから頂端0までの材積割合の計算に使用)
     function integrateStem(x, a, b, c) {
@@ -126,9 +127,9 @@
         const tableBody = document.getElementById('tableBody');
         
         // --- 材積計算 ---
-        const D_m = D / 100; // 直径をメートルに変換
-        const K = integrateStem(1, p.a, p.b, p.c); // 胸高形状係数（x=1のときの積分値）
-        const V = Math.PI * Math.pow(D_m, 2) / 4 * H * K; // 立木材積
+        const D_m = D / 100;
+        const K = integrateStem(1, p.a, p.b, p.c);
+        const V = Math.PI * Math.pow(D_m, 2) / 4 * H * K;
         document.getElementById('volumeDisplay').innerText = `立木材積: ${V.toFixed(3)} m³`;
 
         // --- テーブル生成 ---
@@ -140,11 +141,9 @@
         steps.sort((a,b)=>a-b).forEach(h => {
             const x = 1 - (h / H);
             
-            // 直径の計算
             const y = p.a * Math.pow(x, 3) + p.b * Math.pow(x, 2) + p.c * x;
             const dia = Math.max(0, y * D);
             
-            // 歩留り（累積材積の割合）の計算
             const currentIntegral = integrateStem(x, p.a, p.b, p.c);
             let yieldRatio = ((K - currentIntegral) / K) * 100;
             if (yieldRatio < 0) yieldRatio = 0;
@@ -184,7 +183,7 @@
             });
         }
         currentParams = newParams;
-        localStorage.setItem('taper_params_v3', JSON.stringify(currentParams));
+        localStorage.setItem('taper_params_v1_0', JSON.stringify(currentParams));
         updateSpeciesDropdown();
         document.getElementById('settingsModal').style.display = 'none';
         calculate();
