@@ -17,6 +17,7 @@
         table { width: 100%; border-collapse: collapse; background: white; }
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; }
         th { background: #eee; position: sticky; top: 0; }
+        .volume-display { margin-top: 12px; font-weight: bold; color: var(--primary); font-size: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
         /* モーダルスタイル */
         #settingsModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
         .modal-content { background: white; margin: 10% auto; padding: 15px; width: 90%; max-width: 400px; border-radius: 8px; max-height: 80vh; overflow-y: auto; }
@@ -27,7 +28,7 @@
 <body>
 
 <div class="header">
-    <span style="font-weight: bold; color: var(--primary);">幹細り表 v0.2</span>
+    <span style="font-weight: bold; color: var(--primary);">幹細り表 v0.3</span>
     <button class="btn" onclick="openSettings()">設定</button>
 </div>
 
@@ -47,12 +48,13 @@
             <span>cm</span>
         </div>
     </div>
+    <div id="volumeDisplay" class="volume-display">立木材積: - m³</div>
 </div>
 
-<div class="card" style="padding: 0; overflow-y: auto; max-height: calc(100vh - 120px);">
+<div class="card" style="padding: 0; overflow-y: auto; max-height: calc(100vh - 160px);">
     <table>
         <thead>
-            <tr><th>高さ(m)</th><th>直径(cm)</th></tr>
+            <tr><th>高さ(m)</th><th>直径(cm)</th><th>歩留り(%)</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
     </table>
@@ -70,18 +72,26 @@
 </div>
 
 <script>
-    // 初期データ（岐阜県標準）
+    // 初期データ（福井県スギを追加）
     const defaultParams = [
-        { name: "スギ", a: 1.018, b: -1.036, c: 1.018 },
-        { name: "ヒノキ", a: 1.231, b: -1.464, c: 1.233 },
-        { name: "設定3", a: 1.638, b: -2.124, c: 1.486 },
+        { name: "福井県スギ", a: 1.9771, b: -3.4157, c: 2.5816 },
+        { name: "岐阜県スギ", a: 1.018, b: -1.036, c: 1.018 },
+        { name: "岐阜県ヒノキ", a: 1.231, b: -1.464, c: 1.233 },
         { name: "設定4", a: 1.0, b: -1.0, c: 1.0 },
         { name: "設定5", a: 1.0, b: -1.0, c: 1.0 }
     ];
 
-    let currentParams = JSON.parse(localStorage.getItem('taper_params_v2')) || defaultParams;
+    let currentParams = JSON.parse(localStorage.getItem('taper_params_v3')) || defaultParams;
 
-    // プルダウンの生成
+    // 積分式関数 (相対樹高xから頂端0までの材積割合の計算に使用)
+    function integrateStem(x, a, b, c) {
+        return (a*a/7)*Math.pow(x, 7) +
+               (a*b/3)*Math.pow(x, 6) +
+               ((b*b + 2*a*c)/5)*Math.pow(x, 5) +
+               (b*c/2)*Math.pow(x, 4) +
+               (c*c/3)*Math.pow(x, 3);
+    }
+
     function initSelectors() {
         const hSel = document.getElementById('heightSelect');
         for(let h=5; h<=40; h++) {
@@ -115,6 +125,13 @@
         const p = currentParams[idx];
         const tableBody = document.getElementById('tableBody');
         
+        // --- 材積計算 ---
+        const D_m = D / 100; // 直径をメートルに変換
+        const K = integrateStem(1, p.a, p.b, p.c); // 胸高形状係数（x=1のときの積分値）
+        const V = Math.PI * Math.pow(D_m, 2) / 4 * H * K; // 立木材積
+        document.getElementById('volumeDisplay').innerText = `立木材積: ${V.toFixed(3)} m³`;
+
+        // --- テーブル生成 ---
         tableBody.innerHTML = '';
         const steps = [0.2, 1.2];
         for(let i=2; i<=H; i+=2) steps.push(i);
@@ -122,11 +139,19 @@
         
         steps.sort((a,b)=>a-b).forEach(h => {
             const x = 1 - (h / H);
+            
+            // 直径の計算
             const y = p.a * Math.pow(x, 3) + p.b * Math.pow(x, 2) + p.c * x;
             const dia = Math.max(0, y * D);
             
+            // 歩留り（累積材積の割合）の計算
+            const currentIntegral = integrateStem(x, p.a, p.b, p.c);
+            let yieldRatio = ((K - currentIntegral) / K) * 100;
+            if (yieldRatio < 0) yieldRatio = 0;
+            if (yieldRatio > 100) yieldRatio = 100;
+            
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${h.toFixed(1)}</td><td>${dia.toFixed(1)}</td>`;
+            tr.innerHTML = `<td>${h.toFixed(1)}</td><td>${dia.toFixed(1)}</td><td>${yieldRatio.toFixed(1)}%</td>`;
             tableBody.appendChild(tr);
         });
     }
@@ -139,9 +164,9 @@
             div.className = 'param-row';
             div.innerHTML = `
                 <input type="text" id="name_${i}" value="${p.name}">
-                <input type="number" id="a_${i}" value="${p.a}" step="0.001">
-                <input type="number" id="b_${i}" value="${p.b}" step="0.001">
-                <input type="number" id="c_${i}" value="${p.c}" step="0.001">
+                <input type="number" id="a_${i}" value="${p.a}" step="0.0001">
+                <input type="number" id="b_${i}" value="${p.b}" step="0.0001">
+                <input type="number" id="c_${i}" value="${p.c}" step="0.0001">
             `;
             container.appendChild(div);
         });
@@ -159,7 +184,7 @@
             });
         }
         currentParams = newParams;
-        localStorage.setItem('taper_params_v2', JSON.stringify(currentParams));
+        localStorage.setItem('taper_params_v3', JSON.stringify(currentParams));
         updateSpeciesDropdown();
         document.getElementById('settingsModal').style.display = 'none';
         calculate();
